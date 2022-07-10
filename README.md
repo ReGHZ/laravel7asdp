@@ -8,7 +8,7 @@
     {
         return 'email'; //ganti ke return 'nik';
     }
-    
+<br>   
 4. php artisan migrate
 <br>
 5. php artisan db:seed
