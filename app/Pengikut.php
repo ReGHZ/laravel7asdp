@@ -19,28 +19,8 @@ class Pengikut extends Model
     {
         return $this->belongsTo(User::class);
     }
-    public function perjalanan_dinas()
+    public function perjalananDinas()
     {
         return $this->belongsTo(PerjalananDinas::class);
-    }
-
-    public function tiketPerjalanan()
-    {
-        return $this->HasManyThrough(TiketPerjalanan::class, PerjalananDinas::class);
-    }
-
-    public function biayaHarian()
-    {
-        return $this->hasManyThrough(BiayaHarian::class, PerjalananDinas::class);
-    }
-
-    public function biayaPenginapan()
-    {
-        return $this->hasManyThrough(BiayaPenginapan::class, PerjalananDinas::class);
-    }
-
-    public function biayaLain()
-    {
-        return $this->hasManyThrough(BiayaLain::class, PerjalananDinas::class);
     }
 }

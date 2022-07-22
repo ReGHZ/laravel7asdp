@@ -7,9 +7,11 @@ use App\Pengikut;
 use App\PerjalananDinas;
 use App\User;
 use App\Notifications\NotifPenugasanDinas;
+use App\Rab;
 use Carbon\Carbon;
 use DateTime;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Notification;
 
 class PerjalananDinasController extends Controller
@@ -70,7 +72,7 @@ class PerjalananDinasController extends Controller
         //if pengikut == null create new penugasan
         $penugasan = PerjalananDinas::create([
             // 'user_id' => $request->user_id,
-            'nomor_surat' => $nomorSurat,
+            'nomor_surat' => $nomorSurat + 1,
             'tanggal_surat' => $tanggal_surat,
             'perihal' => $request->perihal,
             'pembebanan_biaya' => $request->pembebanan_biaya,
@@ -117,26 +119,40 @@ class PerjalananDinasController extends Controller
      */
     public function show(PerjalananDinas $penugasan)
     {
+        //get data penugasan with pengikut
         $penugasan = PerjalananDinas::with('pengikut')->find($penugasan->id);
+
+        //get data user manajer
         $manajer = User::whereHas('jabatan', function ($query) {
             $query->where('nama_jabatan', 'GENERAL MANAGER');
         })->get();
+
+        //get data pengikut
         $pengikut = Pengikut::where('perjalanan_dinas_id', $penugasan->id)->get();
         return view('perjalanandinas.suratTugas', compact('penugasan', 'manajer', 'pengikut'));
     }
 
     /**
-     * Show the form for editing the specified resource.
+     * Remove the specified resource from storage.
      *
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function getPenugasan($id)
+    public function destroy(Request $request)
     {
-        $penugasan = PerjalananDinas::with('pengikut')->find($id);
-        return response()->json(
-            ['penugasan' => $penugasan]
-        );
+        //get data penugasan from request by id
+        $penugasan_id = $request->input('penugasan_id');
+
+        //find penugasan id
+        $penugasan = PerjalananDinas::find($penugasan_id);
+
+        //delete prjalanan dinas
+        if ($penugasan != null) {
+            $penugasan->delete();
+            return redirect()->back()->with(['success' => 'Penugasan berhasil dihapus']);
+        }
+
+        return redirect()->back()->with(['error' => 'Id Salah!!']);
     }
 
     /**
@@ -146,10 +162,11 @@ class PerjalananDinasController extends Controller
      */
     public function createRab(PerjalananDinas $penugasan)
     {
-        //get data penugasan with pegawai and pengikut
-        $penugasan = PerjalananDinas::with('pengikut')->find($penugasan->id);
-        $pegawai = User::all();
-        return view('perjalanandinas.createRab', compact('penugasan', 'pegawai'));
+        //get data penugasan
+        $penugasan = PerjalananDinas::find($penugasan->id);
+        //get data rab
+        $rab = Rab::where('perjalanan_dinas_id', $penugasan->id)->get();
+        return view('perjalanandinas.createRab', compact('penugasan', 'rab'));
     }
 
     /**
@@ -160,14 +177,58 @@ class PerjalananDinasController extends Controller
      */
     public function storeRab(Request $request)
     {
-        // dd($request->all());
-        $penugasan = PerjalananDinas::with('pengikut')->where('id', $request->penugasan_id)->first();
+        //validate request
+        $request->validate([
+            'biaya_harian'        => 'required',
+            'jumlah_biaya_harian' => 'required',
+            'total'               => 'required',
+        ], [
 
+            'biaya_harian.required'        => 'biaya Harian harus diisi',
+            'jumlah_biaya_harian.required' => 'jumlah biaya harian harus ada',
+            'total.required'               => 'Total harus ada',
+        ]);
 
+        //get penugasan by id
+        $penugasan = PerjalananDinas::where('id', $request->penugasan_id)->first();
+
+        //create rab
+        $rab = Rab::create([
+            'perjalanan_dinas_id' => $penugasan->id,
+            'pengikut_id' => $request->pengikut_id,
+            //tiket perjalanan dinas
+            'maskapai' => $request->maskapai,
+            'harga_tiket' => $request->harga_tiket,
+            'tempat_berangkat' => $request->tempat_berangkat,
+            'tempat_tujuan' => $request->tempat_tujuan,
+            'charge' => $request->charge,
+            'jumlah_harga_tiket' => $request->jumlah_harga_tiket,
+            //biaya harian
+            'biaya_harian' => $request->biaya_harian,
+            'jumlah_biaya_harian' => $request->jumlah_biaya_harian,
+            //biaya penginaran
+            'lama_hari_penginap' => $request->lama_hari_penginap,
+            'biaya_penginapan' => $request->biaya_penginapan,
+            'jumlah_biaya_penginapan' => $request->jumlah_biaya_penginapan,
+            //total
+            'total' => $request->total,
+            //biaya lain
+            'jumlah_biaya_lain' => $request->jumlah_biaya_lain,
+        ]);
+
+        foreach ($request->biaya_lain as $key => $value) {
+            $rab->biayaLain()->create([
+                'rab_id' => $rab->id,
+                'qty' => $request->qty[$key],
+                'jenis' => $request->jenis[$key],
+                'biaya_lain' => $value,
+            ]);
+        }
+        //update status penugasan ke berlangsung
         $penugasan->status = "Berlangsung";
         $penugasan->save();
 
-        return redirect('perjalanan-dinas')->with('success', 'Data RAB ditambahkan');
+        return redirect()->back()->with('success', 'Data RAB ditambahkan');
     }
 
     /**
@@ -176,18 +237,38 @@ class PerjalananDinasController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function rabForm(PerjalananDinas $penugasan)
+    public function rabForm(Rab $rab)
     {
-        //get data penugasan
-        $penugasan = PerjalananDinas::find($penugasan->id);
+        //get data rab
+        $rab = Rab::find($rab->id);
         //get data manajer
         $manajer = User::whereHas('jabatan', function ($query) {
             $query->where('nama_jabatan', 'GENERAL MANAGER');
         })->get();
-        //get data pengikut
-        $pengikut = Pengikut::where('perjalanan_dinas_id', $penugasan->id)->get();
-        return view('perjalanandinas.rabForm', compact('penugasan', 'manajer', 'rab', 'pengikut'));
-        // dd($array);
+        return view('perjalanandinas.rabForm', compact('rab', 'manajer'));
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function destroyRab(Request $request)
+    {
+        //get data penugasan from request by id
+        $rab_id = $request->input('rab_id');
+
+        //find penugasan id
+        $rab = Rab::find($rab_id);
+
+        //delete prjalanan dinas
+        if ($rab != null) {
+            $rab->delete();
+            return redirect()->back()->with(['success' => 'Rab berhasil dihapus']);
+        }
+
+        return redirect()->back()->with(['error' => 'Id Salah!!']);
     }
 
     /**
@@ -196,7 +277,7 @@ class PerjalananDinasController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function edit($id)
+    public function RealisasiRab($id)
     {
         //
     }
@@ -214,13 +295,19 @@ class PerjalananDinasController extends Controller
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Update the specified resource in storage.
      *
+     * @param  \Illuminate\Http\Request  $request
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function destroy($id)
+    public function indexLaporan()
     {
-        //
+        $user = Auth::user();
+        $penugasan = Pengikut::whereHas('perjalananDinas', function ($query) use ($user) {
+            $query->where('status', 'Berlangsung')->where('user_id', $user->id);
+        })->get();
+        // $penugasan = Pengikut::with('perjalananDinas')->where('user_id', $user->id)->get();
+        return view('perjalanandinas.laporan.index', compact('penugasan'));
     }
 }

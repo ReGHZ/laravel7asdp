@@ -47,6 +47,7 @@
                     </button>
                 </div>
             @endrole
+
             {{-- Tabel perjalanan dinas --}}
             <div class="card shadow-lg">
                 <div class="card-body">
@@ -127,9 +128,9 @@
                                                                 Buat RAB</a>
                                                         </li>
                                                     @elseif($row->status == 'Berlangsung')
-                                                        <li><a href="{{ route('perjalanan-dinas.rab', $row->id) }}"
+                                                        <li><a href="{{ route('perjalanan-dinas.createRab', $row->id) }}"
                                                                 class="dropdown-item"><i class="bi bi-eye text-secondary"></i>
-                                                                lihat RAB</a>
+                                                                Halaman RAB</a>
                                                         </li>
                                                     @endif
                                                 @endrole
@@ -137,7 +138,8 @@
                                                     <li>
                                                         <hr class="dropdown-divider">
                                                     </li>
-                                                    <li><button value="" class="dropdown-item btnCutiDel"><i
+                                                    <li><button value="{{ $row->id }}"
+                                                            class="dropdown-item btnPenugasanDel"><i
                                                                 class="bi bi-exclamation-circle text-danger"></i>
                                                             Hapus
                                                         </button>
@@ -176,5 +178,12 @@
         }
 
         $('select').selectpicker();
+
+        $(document).on('click', '.btnPenugasanDel', function() {
+            var penugasan_id = $(this).val();
+            // alert(cuti_id);
+            $('#penugasanDelete').modal('show');
+            $('#penugasan_id').val(penugasan_id);
+        });
     </script>
 @endpush
